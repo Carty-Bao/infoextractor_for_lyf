@@ -131,7 +131,7 @@ def detect_uni_level(pure_words):
     for index, word in enumerate(pure_words):
         if "毕业" in word:
             for uni in pure_words[index-2:index+5]:
-                if ("大学" in uni) or ("学院" in uni):
+                if ("大学" in uni) or ("学院" in uni) or ("学校" in uni):
                     scholar = uni
                     break
     if scholar == '':
@@ -208,29 +208,46 @@ def clean_sentence(json_data):
     return clean_words, pure_words
 
 if __name__ == '__main__':
-    
-    count = 1
-
-    f = open("extract_info.csv", 'w', encoding='utf-8')
+    ####################################################
+    #读取已经提取的人名
+    names_in_file = []
+    with open('extract_info.csv', 'r') as f:
+        reader = csv.reader(f)
+        for row in reader:
+            names_in_file.append(row[0])
+        print(names_in_file)
+        f.close()
+    ####################################################
+    #打开一个文件，将信息写入
+    f = open("extract_info_simple.csv", 'a+', encoding='utf-8')
     writer = csv.writer(f)
-    writer.writerow(["姓名", "毕业学校", "是否985", "是否211", "是否mba", "是否emba", "是否管理学经历", "是否有管理经验"])
+    if os.stat("extract_info.csv").st_size == 0:
+        writer.writerow(["姓名", "毕业学校", "是否985", "是否211", "是否mba", "是否emba", "是否管理学经历", "是否有管理经验"])
 
     with open('maninfo.csv', 'r') as f:
         reader = csv.reader(f)
         for row in reader:
-            count+=1
             ###########################################################
             #打开文件，只保存名字和简介信息
             #由于文件太大，一次只保存一个人的名字和信息
             name = row[0]
             text = row[2]
+
+            #########################################################
+            #判断这个人是不是已经被提取
+            if name in names_in_file:
+                continue
             print(name)
 
             ###########################################################
             #发送url并获取json文件，使用人名保存json文件
             url=get_url()
             json_data = get_tag(url, text)
+            if not json_data:
+                writer.writerow([name])
+                continue
             save_json(json_data, name)
+
 
             ###########################################################
             #初始化列表
@@ -250,7 +267,7 @@ if __name__ == '__main__':
             print(level_211)
 
             ###########################################################
-            #工商管理经历
+            #工商管理学习经历
             mba_tf, emba_tf, man_tf = mba_expeience(pure_words)
             print("mba经历： ")
             print(mba_tf)
@@ -263,11 +280,22 @@ if __name__ == '__main__':
             #管理经历
             management_experience = manage_exp(pure_words)
             print("管理经历： ")
-            print(manage_exp)
+            print(management_experience)
+
+            ############################################################
+            #若有emba经历，那么又有工商学习经历，也有工商管理经历
+            if emba_tf:
+                management_experience = True
 
             #############################################################
             #将判断结果写入新的csv
             writer.writerow([name, scholar, level_985, level_211, mba_tf, emba_tf, man_tf, management_experience])
-            if count>5:
-                break
+            f.close()
+
+            # #########################################################
+            # #删除重复的人名
+            # data = pd.read_csv("extract_info.csv")
+
+            # frame = data.drop_duplicates(subset=['姓名'], keep='first', inplace=False)
+            # frame.to_csv('extract_info_simple.csv', encoding='utf-8')
 
