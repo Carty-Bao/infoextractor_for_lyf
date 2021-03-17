@@ -49,13 +49,13 @@ def delete_nb(filename):
 
     data.to_csv("maninfo.csv",sep=',', index=False, header=False)
 
-def save_json(json_data, name):
+def save_json(json_data, name, code):
     '''
-    为了多次测试某一样本，将baiduapi返回的json文件转换为字符串保存
+    为了多次测试某一样本，将baidu api返回的json文件转换为字符串保存
     输入参数1:返回好的json_data
     输入参数2:保存的文件名，一般采用人名来保存
     '''
-    name = 'names/'+name + '.json'             #当前目录下简历 /names 文件夹，将json文件保存到该文件夹中
+    name = 'names/' + code + '_' + name + '.json'             #当前目录下简历 /names 文件夹，将json文件保存到该文件夹中
     f2 = open(name, 'w')                    #打开一个只写文件
     f2.write(json.dumps(json_data))         #这句话的功能是将json文件默认的字典结构转换为字符串，否则保存不上
     f2.close()
@@ -207,22 +207,35 @@ def clean_sentence(json_data):
             pure_words.append(item['item'])
     return clean_words, pure_words
 
+def detect_scholar(pure_words):
+    '''
+    判断学历
+    '''
+    scholar_level = 'Unknown'
+    levels = ['高中', '大专', '本科','学士', '硕士', '博士', '博士后']
+    for index, word in enumerate(pure_words):
+        for level in levels:
+            if level in word:
+                scholar_level = level
+    return scholar_level 
+
 if __name__ == '__main__':
     ####################################################
-    #读取已经提取的人名
-    names_in_file = []
-    with open('extract_info.csv', 'r') as f:
-        reader = csv.reader(f)
-        for row in reader:
-            names_in_file.append(row[0])
-        print(names_in_file)
-        f.close()
-    ####################################################
     #打开一个文件，将信息写入
-    f = open("extract_info_simple.csv", 'a+', encoding='utf-8')
+    f = open("extract_info.csv", 'a+', encoding='utf-8')
     writer = csv.writer(f)
     if os.stat("extract_info.csv").st_size == 0:
-        writer.writerow(["姓名", "毕业学校", "是否985", "是否211", "是否mba", "是否emba", "是否管理学经历", "是否有管理经验"])
+        writer.writerow(["股票代码","成员名称", "职位", "学历", "毕业院校", "是否985", "是否211", "是否mba", "是否emba", "是否是管理学专业出身", "是否有管理经验"])
+
+    ####################################################
+    #读取已经提取的人名 从文件中判断
+    names_in_file = []
+    with open('extract_info.csv', 'r') as f1:
+        reader = csv.reader(f1)
+        for row in reader:
+            names_in_file.append(row[0] + '_' + row[1])
+        # print(names_in_file)
+        f1.close()
 
     with open('maninfo.csv', 'r') as f:
         reader = csv.reader(f)
@@ -230,12 +243,21 @@ if __name__ == '__main__':
             ###########################################################
             #打开文件，只保存名字和简介信息
             #由于文件太大，一次只保存一个人的名字和信息
-            name = row[0]
-            text = row[2]
+            code = row[1]
+            name = row[2]
+            position = row[3]
+            text = row[4]
+            # ####################################################
+            # #读取已经提取的人名 从文件夹中判断
+            # names_in_file = []
+            # for root, dirs, files in os.walk("names/", topdown=True):
+            #     for file in files:
+            #         names_in_file.append(file)
 
             #########################################################
             #判断这个人是不是已经被提取
-            if name in names_in_file:
+            nameandcode = code + '_' + name
+            if nameandcode in names_in_file:
                 continue
             print(name)
 
@@ -244,14 +266,15 @@ if __name__ == '__main__':
             url=get_url()
             json_data = get_tag(url, text)
             if not json_data:
-                writer.writerow([name])
+                # writer.writerow([code, name, position])
+                # save_json(json_data, name, code)
                 continue
-            save_json(json_data, name)
+            save_json(json_data, name, code)
 
 
             ###########################################################
             #初始化列表
-            json_data = read_json(name)
+            json_data = read_json(nameandcode)
 
             ##########################################################
             #清洗无关词汇
@@ -287,10 +310,17 @@ if __name__ == '__main__':
             if emba_tf:
                 management_experience = True
 
+            ############################################################
+            #读取学历
+            scholar_level = detect_scholar(pure_words)
+            print("学历：")
+            print(scholar_level)
+
             #############################################################
             #将判断结果写入新的csv
-            writer.writerow([name, scholar, level_985, level_211, mba_tf, emba_tf, man_tf, management_experience])
-            f.close()
+            writer.writerow([code, name, position, scholar_level,scholar, level_985, level_211, mba_tf, emba_tf, man_tf, management_experience])
+
+        f.close()
 
             # #########################################################
             # #删除重复的人名
